@@ -3,8 +3,9 @@
 # --- Configuration ---
 DEFAULT_SSH_KEY_NAME="wert2all_ssh_key"
 ANSIBLE_REPO_URL="git@github.com:wert2all/projects-ansible-config.git"
+DOTFILES_REPO_URL="git@github.com:wert2all/dot-files.git"
+
 WORK_DIR="$HOME/work"
-# Specific parent for infrastructure projects
 INFRA_PARENT="$WORK_DIR/infra"
 
 # --- Colors and Styles ---
@@ -143,7 +144,9 @@ ssh-keyscan -H github.com >>~/.ssh/known_hosts 2>/dev/null
 # Clone Ansible repo into work/infra
 clone_or_update "$ANSIBLE_REPO_URL" "$INFRA_PARENT"
 
-# Example: Clone other repos directly into work/
-# clone_or_update "git@github.com:wert2all/another-project.git" "$WORK_DIR"
+# Clone dot-files repo into work/
+clone_or_update "$DOTFILES_REPO_URL" "$WORK_DIR"
 
 echo -e "\n${GREEN}${BOLD}✨ ALL DONE! Your environment is ready. ✨${RESET}\n"
+info "Infrastructure: ${BOLD}$INFRA_PARENT/projects-ansible-config${RESET}"
+info "Dotfiles:       ${BOLD}$WORK_DIR/dot-files${RESET}"
