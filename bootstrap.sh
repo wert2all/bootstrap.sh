@@ -78,23 +78,27 @@ setup_bitwarden_cli() {
 
 fetch_ssh_keys() {
     local key_name=$1
+    local bw_status
+    local item_json
+
     mkdir -p ~/.ssh && chmod 700 ~/.ssh
 
     # Check if logged in
-    local bw_status=$(bw status)
-    if [[ $(echo "$bw_status" | jq -r '.status') == "unauthenticated" ]]; then
-        bw login
+    bw_status=$(bw status | jq -r '.status')
+    if [ "$bw_status" == "unauthenticated" ]; then
+        info "Logging into Bitwarden..."
+        export BW_SESSION=$(bw login --raw)
+    else
+        export BW_SESSION=$(bw unlock --raw)
     fi
 
-    # Unlock and set session
     if [ -z "${BW_SESSION:-}" ]; then
-        info "Unlocking vault..."
-        BW_SESSION=$(bw unlock --raw)
-        export BW_SESSION
+        error "Failed to obtain Bitwarden session. Please check your credentials."
+        exit 1
     fi
 
     info "Fetching keys for: ${BOLD}$key_name${RESET}..."
-    local item_json=$(bw get item "$key_name" --session "$BW_SESSION")
+    item_json=$(bw get item "$key_name" --session "$BW_SESSION")
 
     echo "$item_json" | jq -r '.sshKey.publicKey' >~/.ssh/id_rsa.pub
     echo "$item_json" | jq -r '.sshKey.privateKey' >~/.ssh/id_rsa
