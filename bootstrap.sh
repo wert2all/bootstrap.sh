@@ -4,7 +4,8 @@
 DEFAULT_SSH_KEY_NAME="wert2all_ssh_key"
 ANSIBLE_REPO_URL="git@github.com:wert2all/projects-ansible-config.git"
 WORK_DIR="$HOME/work"
-INFRA_DIR="$WORK_DIR/infra"
+# Specific parent for infrastructure projects
+INFRA_PARENT="$WORK_DIR/infra"
 
 # --- Colors and Styles ---
 BOLD='\033[1m'
@@ -33,31 +34,31 @@ detect_distro() {
 }
 
 # Function to clone or update a repository
+# Usage: clone_or_update <repo_url> <destination_parent_dir>
 clone_or_update() {
     local repo_url=$1
-    local target_dir=$2
+    local dest_parent=$2
 
-    info "Processing repository into: ${BOLD}$target_dir${RESET}"
+    # Extract repo name from URL
+    local repo_name=$(basename "$repo_url" .git)
+    local full_path="$dest_parent/$repo_name"
 
-    # 1. If it's already a git repo, just pull
-    if [ -d "$target_dir/.git" ]; then
-        info "Repository already exists. Pulling updates..."
-        (cd "$target_dir" && git pull)
+    # Ensure parent directory exists
+    mkdir -p "$dest_parent"
 
-    # 2. If directory doesn't exist OR it exists but is empty, we can clone
-    elif [ ! -d "$target_dir" ] || [ -z "$(ls -A "$target_dir")" ]; then
-        info "Cloning into $target_dir..."
-        if git clone "$repo_url" "$target_dir"; then
-            success "Cloned successfully."
+    if [ -d "$full_path/.git" ]; then
+        info "Repository ${BOLD}$repo_name${RESET} already exists. Pulling updates..."
+        (cd "$full_path" && git pull)
+    elif [ -d "$full_path" ]; then
+        error "Directory $full_path exists but is not a git repository. Skipping."
+    else
+        info "Cloning ${BOLD}$repo_name${RESET} into $dest_parent..."
+        if (cd "$dest_parent" && git clone "$repo_url"); then
+            success "Repository $repo_name cloned successfully."
         else
             error "Failed to clone $repo_url."
             return 1
         fi
-
-    # 3. If directory exists and has files (but no .git), we don't want to break anything
-    else
-        error "Directory $target_dir is not empty and not a git repo. Manual intervention required."
-        return 1
     fi
 }
 
@@ -139,10 +140,10 @@ header "📁 Step 4: Repository Setup"
 info "Scanning GitHub SSH fingerprint..."
 ssh-keyscan -H github.com >>~/.ssh/known_hosts 2>/dev/null
 
-# Create work directory (base only)
-mkdir -p "$WORK_DIR"
+# Clone Ansible repo into work/infra
+clone_or_update "$ANSIBLE_REPO_URL" "$INFRA_PARENT"
 
-# Execute clone/update
-clone_or_update "$ANSIBLE_REPO_URL" "$INFRA_DIR"
+# Example: Clone other repos directly into work/
+# clone_or_update "git@github.com:wert2all/another-project.git" "$WORK_DIR"
 
 echo -e "\n${GREEN}${BOLD}✨ ALL DONE! Your environment is ready. ✨${RESET}\n"
