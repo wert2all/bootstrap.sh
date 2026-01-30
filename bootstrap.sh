@@ -23,19 +23,94 @@ success() { echo -e "${GREEN}${BOLD}✔ SUCCESS:${RESET} $1"; }
 error() { echo -e "${RED}${BOLD}✘ ERROR:${RESET} $1"; }
 header() { echo -e "\n${CYAN}${BOLD}=== $1 ===${RESET}\n"; }
 
-detect_distro() {
+# Function to detect distro and install packages
+install_dependencies() {
+    local distro="unknown"
+
     if [ -f /etc/os-release ]; then
         . /etc/os-release
-        echo "$ID"
+        distro="$ID"
     elif [ -f /etc/arch-release ]; then
-        echo "arch"
+        distro="arch"
+    fi
+
+    info "Detected distribution: ${BOLD}$distro${RESET}"
+
+    case "$distro" in
+    "arch")
+        info "Installing dependencies via pacman..."
+        sudo pacman -Syu --noconfirm jq pnpm git ansible
+        ;;
+    "ubuntu" | "debian" | "pop" | "linuxmint")
+        info "Installing dependencies via apt..."
+        sudo apt update && sudo apt install -y jq pnpm git ansible
+        ;;
+    "opensuse-tumbleweed" | "opensuse-leap" | "opensuse")
+        info "Installing dependencies via zypper..."
+        sudo zypper install -y jq pnpm git ansible
+        ;;
+    "fedora")
+        info "Installing dependencies via dnf..."
+        sudo dnf install -y jq pnpm git ansible
+        ;;
+    *)
+        error "Unsupported distro ($distro). Please install jq, pnpm, git, and ansible manually."
+        exit 1
+        ;;
+    esac
+}
+
+# Function to setup pnpm paths and install Bitwarden CLI
+setup_bitwarden_cli() {
+    export PNPM_HOME="$HOME/.local/share/pnpm"
+    export PATH="$PNPM_HOME:$PATH"
+
+    if ! command -v bw &>/dev/null; then
+        info "Bitwarden CLI not found. Installing via pnpm..."
+        pnpm add -g @bitwarden/cli
+        success "Bitwarden CLI installed."
     else
-        echo "unknown"
+        info "Bitwarden CLI is already installed."
     fi
 }
 
+# Function to fetch SSH keys from Bitwarden
+fetch_ssh_keys() {
+    local key_name=$1
+
+    mkdir -p ~/.ssh && chmod 700 ~/.ssh
+
+    # Check if we need to unlock/login
+    if [ -z "$BW_SESSION" ]; then
+        info "Authentication needed for Bitwarden."
+        if ! bw status | jq -e '.status == "authenticated"' >/dev/null; then
+            bw login
+        fi
+        export BW_SESSION=$(bw unlock --raw)
+    fi
+
+    info "Fetching keys for: ${BOLD}$key_name${RESET}..."
+    local item_json=$(bw get item "$key_name" 2>/dev/null)
+
+    if [ $? -ne 0 ] || [ -z "$item_json" ]; then
+        error "Could not find item '$key_name' in your vault."
+        exit 1
+    fi
+
+    echo "$item_json" | jq -r '.sshKey.publicKey' >~/.ssh/id_rsa.pub
+    echo "$item_json" | jq -r '.sshKey.privateKey' >~/.ssh/id_rsa
+
+    if [ ! -s ~/.ssh/id_rsa ]; then
+        error "Private key field is empty in Bitwarden!"
+        exit 1
+    fi
+
+    chmod 600 ~/.ssh/id_rsa
+    chmod 644 ~/.ssh/id_rsa.pub
+    success "SSH keys configured in ~/.ssh/"
+}
+
 # Function to clone or update a repository
-# Usage: clone_or_update <repo_url> <destination_parent_dir>
 clone_or_update() {
     local repo_url=$1
     local dest_parent=$2
@@ -72,69 +147,21 @@ echo -e "${RESET}"
 
 # 1. System Dependencies
 header "📦 Step 1: System Dependencies"
-distro=$(detect_distro)
-info "Detected distribution: ${BOLD}$distro${RESET}"
-
-case "$distro" in
-"arch")
-    info "Installing dependencies via pacman..."
-    sudo pacman -Syu --noconfirm jq pnpm git ansible
-    ;;
-"ubuntu" | "debian" | "pop" | "linuxmint")
-    info "Installing dependencies via apt..."
-    sudo apt update && sudo apt install -y jq pnpm git ansible
-    ;;
-*)
-    error "Unsupported distro. Please install jq, pnpm, git, and ansible manually."
-    exit 1
-    ;;
-esac
+install_dependencies
 success "System tools ready."
 
 # 2. Bitwarden CLI Setup
 header "🔐 Step 2: Bitwarden Integration"
-export PNPM_HOME="$HOME/.local/share/pnpm"
-export PATH="$PNPM_HOME:$PATH"
-
-if ! command -v bw &>/dev/null; then
-    info "Installing Bitwarden CLI via pnpm..."
-    pnpm add -g @bitwarden/cli
-fi
+setup_bitwarden_cli
 
 echo -e "${YELLOW}${BOLD}󱊄 ACTION REQUIRED:${RESET}"
 echo -n "   Enter SSH key name in Bitwarden [Default: $DEFAULT_SSH_KEY_NAME]: "
 read -r INPUT_KEY_NAME
-SSH_KEY_NAME=${INPUT_KEY_NAME:-$DEFAULT_SSH_KEY_NAME}
-
-if [ -z "$BW_SESSION" ]; then
-    info "Authentication needed for Bitwarden."
-    bw login
-    export BW_SESSION=$(bw unlock --raw)
-fi
+TARGET_KEY_NAME=${INPUT_KEY_NAME:-$DEFAULT_SSH_KEY_NAME}
 
 # 3. SSH Key Retrieval
 header "🔑 Step 3: Secret Retrieval"
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
-
-info "Fetching keys for: ${BOLD}$SSH_KEY_NAME${RESET}..."
-ITEM_JSON=$(bw get item "$SSH_KEY_NAME" 2>/dev/null)
-
-if [ $? -ne 0 ] || [ -z "$ITEM_JSON" ]; then
-    error "Could not find item '$SSH_KEY_NAME' in your vault."
-    exit 1
-fi
-
-echo "$ITEM_JSON" | jq -r '.sshKey.publicKey' >~/.ssh/id_rsa.pub
-echo "$ITEM_JSON" | jq -r '.sshKey.privateKey' >~/.ssh/id_rsa
-
-if [ ! -s ~/.ssh/id_rsa ]; then
-    error "Private key field is empty!"
-    exit 1
-fi
-
-chmod 600 ~/.ssh/id_rsa
-chmod 644 ~/.ssh/id_rsa.pub
-success "SSH keys configured."
+fetch_ssh_keys "$TARGET_KEY_NAME"
 
 # 4. Repository Setup
 header "📁 Step 4: Repository Setup"
@@ -148,5 +175,5 @@ clone_or_update "$ANSIBLE_REPO_URL" "$INFRA_PARENT"
 clone_or_update "$DOTFILES_REPO_URL" "$WORK_DIR"
 
 echo -e "\n${GREEN}${BOLD}✨ ALL DONE! Your environment is ready. ✨${RESET}\n"
-info "Infrastructure: ${BOLD}$INFRA_PARENT/projects-ansible-config${RESET}"
-info "Dotfiles:       ${BOLD}$WORK_DIR/dot-files${RESET}"
+info "Infrastructure: ${BOLD}$INFRA_PARENT/$(basename "$ANSIBLE_REPO_URL" .git)${RESET}"
+info "Dotfiles:       ${BOLD}$WORK_DIR/$(basename "$DOTFILES_REPO_URL" .git)${RESET}"
