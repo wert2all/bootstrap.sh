@@ -4,6 +4,7 @@
 set -e
 
 WORK_DIR="$HOME/work"
+PASS_DIR="$HOME/.password-store"
 DISTRO="unknown"
 
 detect_distro() {
@@ -22,14 +23,22 @@ systemctl start --user ssh-agent
 
 DISTRO=$(detect_distro)
 if [ "$DISTRO" == "arch" ]; then
-
-  cd $WORK_DIR
-  git clone https://aur.archlinux.org/yay.git
-  cd yay
-  makepkg -si
-
+  if ! command -v yay &>/dev/null; then
+    cd "$WORK_DIR"
+    git clone https://aur.archlinux.org/yay.git
+    cd yay
+    makepkg -si
+  fi
   yay -S --noconfirm \
     zen-browser-bin
+fi
+
+if [ ! -d "$PASS_DIR" ]; then
+  pass init "$HOME/.password-store"
+  pass git init
+  pass git remote add origin git@wert2all.nsupdate.info:wert2all/password-store.git
+  pass git fetch --all
+  pass git reset --hard origin/main
 fi
 
 pnpm install -g opencode-ai @fission-ai/openspec@latest
