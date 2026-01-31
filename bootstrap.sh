@@ -4,7 +4,6 @@
 set -e
 
 # --- Configuration ---
-DEFAULT_SSH_KEY_NAME="wert2all_ssh_key"
 ANSIBLE_REPO_URL="git@github.com:wert2all/projects-ansible-config.git"
 DOTFILES_REPO_URL="git@github.com:wert2all/dot-files.git"
 
@@ -76,13 +75,7 @@ setup_bitwarden_cli() {
     fi
 }
 
-fetch_ssh_keys() {
-    local key_name=$1
-    local bw_status
-    local item_json
-
-    mkdir -p ~/.ssh && chmod 700 ~/.ssh
-
+authorize_bitwarden() {
     # Check if logged in
     bw_status=$(bw status | jq -r '.status')
     if [ "$bw_status" == "unauthenticated" ]; then
@@ -97,38 +90,86 @@ fetch_ssh_keys() {
         exit 1
     fi
 
-    info "Fetching keys for: ${BOLD}$key_name${RESET}..."
-    item_json=$(bw get item "$key_name" --session "$BW_SESSION")
-
-    echo "$item_json" | jq -r '.sshKey.publicKey' >~/.ssh/id_rsa.pub
-    echo "$item_json" | jq -r '.sshKey.privateKey' >~/.ssh/id_rsa
-
-    chmod 600 ~/.ssh/id_rsa
-    chmod 644 ~/.ssh/id_rsa.pub
-
-    # Restart agent and add key
-    info "Refreshing ssh-agent..."
-    eval "$(ssh-agent -s)" >/dev/null
-    ssh-add ~/.ssh/id_rsa
 }
 
 clone_or_update() {
     local repo_url=$1
     local dest_parent=$2
-    local repo_name=$(basename "$repo_url" .git)
+
+    local repo_name
+    repo_name=$(echo "$repo_url" | sed 's#.*/##; s#\.git$##')
+
     local full_path="$dest_parent/$repo_name"
 
     mkdir -p "$dest_parent"
 
-    if [ -d "$full_path" ]; then
-        info "Repository ${BOLD}$repo_name${RESET} already exists. ${YELLOW}Skipping pull as requested.${RESET}"
+    if [ -d "$full_path/.git" ]; then
+        info "Repository ${BOLD}$repo_name${RESET} already exists. Skipping."
     else
         info "Cloning ${BOLD}$repo_name${RESET} into $dest_parent..."
-        (cd "$dest_parent" && git clone "$repo_url")
+        git clone "$repo_url" "$full_path"
         success "Repository $repo_name cloned successfully."
     fi
 }
 
+expose_all_ssh_keys_from_bitwarden() {
+    bw list items --session "$BW_SESSION" | jq -c '[.[] | select(.sshKey != null)]'
+}
+
+expose_key_from_bitwarden() {
+    local bitwarden_item=$1
+    local dest_parent=$2
+    local key_name=$3
+
+    echo -n "   Enter SSH key name in Bitwarden: "
+    read -r bitwarden_item
+
+    mkdir -p "$dest_parent" && chmod 700 "$dest_parent"
+
+    info "Fetching keys for: ${BOLD}$bitwarden_item${RESET}..."
+    local matched_item
+    matched_item=$(echo "$filtered_items_json" | jq -e -c ".[] | select(.name == \"$bitwarden_item\")" 2>/dev/null || true)
+
+    if [ -z "$matched_item" ]; then
+        error "Item '$bitwarden_item' not found in the filtered SSH list."
+        exit 1
+    fi
+
+    echo "$matched_item" | jq -r '.sshKey.publicKey' >"$dest_parent"/"$key_name".pub
+    echo "$matched_item" | jq -r '.sshKey.privateKey' >"$dest_parent"/"$key_name"
+
+    chmod 600 "$dest_parent"/"$key_name"
+    chmod 644 "$dest_parent"/"$key_name".pub
+
+    # # Restart agent and add key
+    # info "Refreshing ssh-agent..."
+    # eval "$(ssh-agent -s)" >/dev/null
+    # ssh-add ~/.ssh/id_rsa
+}
+
+import_gpg_key() {
+    echo -n "   Enter Bitwarden item name for GPG key (stored in Notes): "
+    read -r gpg_item_name </dev/tty
+
+    if [ -z "$gpg_item_name" ]; then
+        info "Skipping GPG import."
+        return
+    fi
+
+    info "Fetching GPG key from: ${BOLD}$gpg_item_name${RESET}..."
+    local gpg_key_text
+    gpg_key_text=$(bw list items --search "$gpg_item_name" --session "$BW_SESSION" | jq -r '.[0].notes')
+
+    if [ "$gpg_key_text" == "null" ] || [ -z "$gpg_key_text" ]; then
+        error "No GPG key found in notes of '$gpg_item_name'."
+        return 1
+    fi
+
+    echo "$gpg_key_text" | gpg --import
+    success "GPG key imported."
+}
+
+#
 # --- Main Script ---
 clear
 echo -e "${YELLOW}${BOLD}  ⚡ LINUX BOOTSTRAPPER ⚡  ${RESET}"
@@ -138,17 +179,26 @@ install_dependencies
 
 header "Step 2: Bitwarden Integration"
 setup_bitwarden_cli
-echo -n "   Enter SSH key name in Bitwarden [Default: $DEFAULT_SSH_KEY_NAME]: "
-read -r INPUT_KEY_NAME
-TARGET_KEY_NAME=${INPUT_KEY_NAME:-$DEFAULT_SSH_KEY_NAME}
+authorize_bitwarden
 
-header "Step 3: Secret Retrieval"
-fetch_ssh_keys "$TARGET_KEY_NAME"
+filtered_items_json=$(expose_all_ssh_keys_from_bitwarden)
+export filtered_items_json
 
-header "Step 4: Repository Setup"
+info "    Select Bitwarden item for user SSH keys:"
+expose_key_from_bitwarden "$bitwarden_item" ~/.ssh/ id_rsa
+info "    Select Bitwarden item for ansible SSH keys:"
+expose_key_from_bitwarden "$bitwarden_item" "$INFRA_PARENT/projects-ansible-config/playbooks/tasks/init/files" ansible
+
+info "Import GPG-key"
+import_gpg_key
+
+header "Step 3: Repository Setup"
 info "Scanning GitHub SSH fingerprint..."
 ssh-keygen -R github.com 2>/dev/null || true
 ssh-keyscan -H github.com >>~/.ssh/known_hosts 2>/dev/null
+
+mkdir -p "$WORK_DIR"
+mkdir -p "$INFRA_PARENT"
 
 clone_or_update "$ANSIBLE_REPO_URL" "$INFRA_PARENT"
 clone_or_update "$DOTFILES_REPO_URL" "$WORK_DIR"
