@@ -29,8 +29,11 @@ if [ "$DISTRO" == "arch" ]; then
     cd yay
     makepkg -si
   fi
+
   yay -S --noconfirm \
-    zen-browser-bin
+    zen-browser-bin \
+    telegram-desktop-bin \
+    discord
 fi
 
 if [ ! -d "$PASS_DIR" ]; then
