@@ -36,6 +36,11 @@ if [ "$DISTRO" == "arch" ]; then
     discord
 fi
 
+if [[ "$DISTRO" =~ ^(opensuse-tumbleweed|opensuse-leap|opensuse)$ ]]; then
+  sudo zypper install flatpak discord
+  flatpak install flathub app.zen_browser.zen
+fi
+
 if [ ! -d "$PASS_DIR" ]; then
   pass init "$HOME/.password-store"
   pass git init
@@ -44,6 +49,6 @@ if [ ! -d "$PASS_DIR" ]; then
   pass git reset --hard origin/main
 fi
 
-pnpm install -g opencode-ai @fission-ai/openspec@latest
-
-curl -fsSL https://plannotator.ai/install.sh | bash
+# pnpm install -g opencode-ai @fission-ai/openspec@latest
+#
+# curl -fsSL https://plannotator.ai/install.sh | bash
