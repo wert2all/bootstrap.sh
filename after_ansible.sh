@@ -21,6 +21,9 @@ detect_distro() {
 systemctl enable --user ssh-agent
 systemctl start --user ssh-agent
 
+sudo systemctl enable --now systemd-resolved
+sudo ln -s /usr/bin/resolvectl /usr/local/bin/resolvconf
+
 DISTRO=$(detect_distro)
 if [ "$DISTRO" == "arch" ]; then
   if ! command -v yay &>/dev/null; then
