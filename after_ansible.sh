@@ -42,7 +42,11 @@ if [ "$DISTRO" == "arch" ]; then
 fi
 
 if [[ "$DISTRO" =~ ^(opensuse-tumbleweed|opensuse-leap|opensuse)$ ]]; then
-  sudo zypper install flatpak discord
+  sudo rpm --import https://dl.google.com/linux/linux_signing_key.pub
+  sudo zypper addrepo https://dl.google.com/linux/chrome/rpm/stable/x86_64 Google-Chrome
+  sudo zypper refresh
+
+  sudo zypper install flatpak discord google-chrome-stable
   flatpak install flathub app.zen_browser.zen flathub md.obsidian.Obsidian
 fi
 
