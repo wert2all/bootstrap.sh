@@ -38,7 +38,11 @@ if [ "$DISTRO" == "arch" ]; then
     google-chrome
 
   sudo systemctl enable --now systemd-resolved
-  sudo ln -s /usr/bin/resolvectl /usr/local/bin/resolvconf
+  if [ -f /usr/bin/resolvectl ]; then
+    echo "resolvconf already installed"
+  else
+    sudo ln -s /usr/bin/resolvectl /usr/local/bin/resolvconf
+  fi
 
 fi
 
