@@ -34,7 +34,8 @@ if [ "$DISTRO" == "arch" ]; then
     zen-browser-bin \
     telegram-desktop-bin \
     discord \
-    obsidian
+    obsidian \
+    google-chrome
 
   sudo systemctl enable --now systemd-resolved
   sudo ln -s /usr/bin/resolvectl /usr/local/bin/resolvconf
