@@ -53,7 +53,7 @@ if [[ "$DISTRO" =~ ^(opensuse-tumbleweed|opensuse-leap|opensuse)$ ]]; then
   sudo zypper refresh
 
   sudo zypper install flatpak discord google-chrome-stable
-  flatpak install flathub app.zen_browser.zen flathub md.obsidian.Obsidian
+  flatpak install flathub app.zen_browser.zen md.obsidian.Obsidian io.dbeaver.DBeaverCommunity
 fi
 
 
