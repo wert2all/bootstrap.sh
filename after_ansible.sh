@@ -35,7 +35,8 @@ if [ "$DISTRO" == "arch" ]; then
     telegram-desktop-bin \
     discord \
     obsidian \
-    google-chrome
+    google-chrome \
+    flatpak
 
   sudo systemctl enable --now systemd-resolved
   if [ -f /usr/bin/resolvectl ]; then
@@ -54,6 +55,9 @@ if [[ "$DISTRO" =~ ^(opensuse-tumbleweed|opensuse-leap|opensuse)$ ]]; then
   sudo zypper install flatpak discord google-chrome-stable
   flatpak install flathub app.zen_browser.zen flathub md.obsidian.Obsidian
 fi
+
+
+flatpak install flathub com.getmailspring.Mailspring
 
 if [ ! -d "$PASS_DIR" ]; then
   pass init "$HOME/.password-store"
