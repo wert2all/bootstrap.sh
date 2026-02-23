@@ -52,7 +52,8 @@ if [[ "$DISTRO" =~ ^(opensuse-tumbleweed|opensuse-leap|opensuse)$ ]]; then
   sudo zypper addrepo https://dl.google.com/linux/chrome/rpm/stable/x86_64 Google-Chrome
   sudo zypper refresh
 
-  sudo zypper install flatpak discord google-chrome-stable
+  sudo zypper install flatpak google-chrome-stable
+  flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
   flatpak install flathub app.zen_browser.zen md.obsidian.Obsidian io.dbeaver.DBeaverCommunity
 fi
 
