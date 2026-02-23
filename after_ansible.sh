@@ -55,8 +55,9 @@ if [[ "$DISTRO" =~ ^(opensuse-tumbleweed|opensuse-leap|opensuse)$ ]]; then
   sudo zypper install flatpak google-chrome-stable
   flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
   flatpak install flathub app.zen_browser.zen md.obsidian.Obsidian io.dbeaver.DBeaverCommunity
-fi
 
+  sudo zypper install-new-recommends
+fi
 
 flatpak install flathub com.getmailspring.Mailspring
 
