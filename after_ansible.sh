@@ -71,4 +71,3 @@ fi
 
 pnpm install -g opencode-ai @fission-ai/openspec@latest
 
-curl -fsSL https://plannotator.ai/install.sh | bash
