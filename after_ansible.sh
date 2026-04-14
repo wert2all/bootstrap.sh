@@ -69,5 +69,5 @@ if [ ! -d "$PASS_DIR" ]; then
   pass git reset --hard origin/main
 fi
 
-pnpm install -g opencode-ai @fission-ai/openspec@latest nicobailon/pi-mcp-adapter nicobailon/pi-subagents
+pnpm install -g opencode-ai @fission-ai/openspec@latest nicobailon/pi-mcp-adapter nicobailon/pi-subagents nicobailon/pi-web-access
 
