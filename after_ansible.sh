@@ -36,7 +36,8 @@ if [ "$DISTRO" == "arch" ]; then
     discord \
     obsidian \
     google-chrome \
-    flatpak
+    flatpak \
+    inotify-tools
 
   sudo systemctl enable --now systemd-resolved
   if [ -f /usr/bin/resolvectl ]; then
